@@ -1,12 +1,9 @@
 /**
   @author David Piegza
-
   Implements a force-directed layout, the algorithm is based on Fruchterman and Reingold and
   the JUNG implementation.
-
   Needs the graph data structure Graph.js:
   https://github.com/davidpiegza/Graph-Visualization/blob/master/Graph.js
-
   Parameters:
   graph - data structure
   options = {
@@ -16,7 +13,6 @@
     iterations: <int>, maximum number of iterations
     width: <int>, width of the viewport
     height: <int>, height of the viewport
-
     positionUpdated: <function>, called when the position of the node has been updated
   }
   
@@ -30,10 +26,7 @@
   
   call generate in a render method, returns true if it's still calculating and false if it's finished
   layout.generate();
-
-
   Feel free to contribute a new layout!
-
  */
 
 var Layout = Layout || {};
@@ -78,6 +71,76 @@ Layout.ForceDirected = function(graph, options) {
     repulsion_constant = this.repulsion_multiplier * forceConstant;
   };
 
+  
+  var get = function(layout, value){
+      var obj = {};
+      value = value || 0;
+      obj.x = value;
+      obj.y = value;
+      if(layout === "3d") {
+          obj.z = value;
+      }
+      return obj;
+  }
+  
+  function initIfNeed(parent, child){
+      if(!parent[child]){
+          parent[child] = {};
+      }
+  }
+  
+  function or(layout, dstObj, baseObj){
+      dstObj.x = dstObj.x || baseObj.x;
+      dstObj.y = dstObj.y || baseObj.y;
+      if(layout === "3d") {    
+          dstObj.z = dstObj.z || baseObj.z;
+      }
+  }
+  
+  function add(layout, sub1, sub2){
+      var res = {};
+      res.x = sub1.x + sub2.x;
+      res.y = sub1.y + sub2.y;
+      if(layout === "3d") {
+          res.z = sub1.z + sub2.z;
+      }
+      return res;
+  }
+  
+  function sub(layout, sub1, sub2){
+      var res = {};
+      res.x = sub1.x - sub2.x;
+      res.y = sub1.y - sub2.y;
+      if(layout === "3d") {
+          res.z = sub1.z - sub2.z;
+      }
+      return res;
+  }
+  
+  function sum(arr){
+      return arr.x+arr.y + (arr.z?arr.z:0);
+  }
+  
+  function mul(layout, mul1, mul2){
+      var res = {};
+      res.x = mul1.x * mul2.x;
+      res.y = mul1.y * mul2.y;
+      if(layout === "3d") {
+          res.z = mul1.z * mul2.z;
+      }
+      return res;
+  }
+  
+  function div(layout, mul1, mul2){
+      var res = {};
+      res.x = mul1.x / mul2.x;
+      res.y = mul1.y / mul2.y;
+      if(layout === "3d") {
+          res.z = mul1.z / mul2.z;
+      }
+      return res;
+  }
+  
   /**
    * Generates the force-directed layout.
    *
@@ -93,39 +156,25 @@ Layout.ForceDirected = function(graph, options) {
         var node_v = graph.nodes[i];
         node_v.layout = node_v.layout || {};
         if(i==0) {
-          node_v.layout.offset_x = 0;
-          node_v.layout.offset_y = 0;
-          if(this.layout === "3d") {
-            node_v.layout.offset_z = 0;
-          }
+          node_v.layout.offset = get(this.layout);
         }
 
         node_v.layout.force = 0;
-        node_v.layout.tmp_pos_x = node_v.layout.tmp_pos_x || node_v.position.x;
-        node_v.layout.tmp_pos_y = node_v.layout.tmp_pos_y || node_v.position.y;
-        if(this.layout === "3d") {    
-          node_v.layout.tmp_pos_z = node_v.layout.tmp_pos_z || node_v.position.z;
-        }
+        initIfNeed(node_v.layout,'tmp_pos');
+        or(this.layout, node_v.layout.tmp_pos, node_v.position);
 
         for(var j=i+1; j < nodes_length; j++) {
           var node_u = graph.nodes[j];
           if(i != j) {
             node_u.layout = node_u.layout || {};
-            node_u.layout.tmp_pos_x = node_u.layout.tmp_pos_x || node_u.position.x;
-            node_u.layout.tmp_pos_y = node_u.layout.tmp_pos_y || node_u.position.y;
-            if(this.layout === "3d") {
-              node_u.layout.tmp_pos_z = node_u.layout.tmp_pos_z || node_u.position.z;
-            }
+            initIfNeed(node_u.layout,'tmp_pos');
+            or(this.layout, node_u.layout.tmp_pos, node_u.position);
 
-            var delta_x = node_v.layout.tmp_pos_x - node_u.layout.tmp_pos_x;
-            var delta_y = node_v.layout.tmp_pos_y - node_u.layout.tmp_pos_y;
-            if(this.layout === "3d") {
-              var delta_z = node_v.layout.tmp_pos_z - node_u.layout.tmp_pos_z;
-            }
+            var delta = sub(this.layout, node_v.layout.tmp_pos, node_u.layout.tmp_pos);
 
-            var delta_length = Math.max(EPSILON, Math.sqrt((delta_x * delta_x) + (delta_y * delta_y)));
+            var delta_length = Math.max(EPSILON, Math.sqrt(sum(mul(this.layout, delta, delta))));
             if(this.layout === "3d") {
-              var delta_length_z = Math.max(EPSILON, Math.sqrt((delta_z * delta_z) + (delta_y * delta_y)));
+                var delta_length_z = Math.max(EPSILON, Math.sqrt(sum(mul(this.layout, delta, delta))));
             }
 
             var force = (repulsion_constant * repulsion_constant) / delta_length;
@@ -136,23 +185,13 @@ Layout.ForceDirected = function(graph, options) {
             node_v.layout.force += force;
             node_u.layout.force += force;
 
-            node_v.layout.offset_x += (delta_x / delta_length) * force;
-            node_v.layout.offset_y += (delta_y / delta_length) * force;
-
             if(i==0) {
-              node_u.layout.offset_x = 0;
-              node_u.layout.offset_y = 0;
-              if(this.layout === "3d") {
-                node_u.layout.offset_z = 0;
-              }
+                node_u.layout.offset = get(this.layout);
             }
-            node_u.layout.offset_x -= (delta_x / delta_length) * force;
-            node_u.layout.offset_y -= (delta_y / delta_length) * force;
 
-            if(this.layout === "3d") {
-              node_v.layout.offset_z += (delta_z / delta_length_z) * force_z;
-              node_u.layout.offset_z -= (delta_z / delta_length_z) * force_z;
-            }
+            var change = mul(this.layout, delta, get(this.layout, force/delta_length));
+            node_v.layout.offset = add(this.layout, node_v.layout.offset, change);
+            node_u.layout.offset = sub(this.layout, node_u.layout.offset, change);
           }
         }
       }
@@ -160,57 +199,37 @@ Layout.ForceDirected = function(graph, options) {
       // calculate attraction
       for(var i=0; i < edges_length; i++) {
         var edge = graph.edges[i];
-        var delta_x = edge.source.layout.tmp_pos_x - edge.target.layout.tmp_pos_x;
-        var delta_y = edge.source.layout.tmp_pos_y - edge.target.layout.tmp_pos_y;
-        if(this.layout === "3d") {
-          var delta_z = edge.source.layout.tmp_pos_z - edge.target.layout.tmp_pos_z;
-        }  
-
-        var delta_length = Math.max(EPSILON, Math.sqrt((delta_x * delta_x) + (delta_y * delta_y)));
-        if(this.layout === "3d") {
-          var delta_length_z = Math.max(EPSILON, Math.sqrt((delta_z * delta_z) + (delta_y * delta_y)));
-        }
+        var delta = sub(this.layout, edge.source.layout.tmp_pos, edge.target.layout.tmp_pos);
+        
+        var delta_length = Math.max(EPSILON, Math.sqrt(sum(mul(this.layout, delta, delta))));
         var force = (delta_length * delta_length) / attraction_constant;
-        if(this.layout === "3d") {
-          var force_z = (delta_length_z * delta_length_z) / attraction_constant;
-        }
 
         edge.source.layout.force -= force;
         edge.target.layout.force += force;
-
-        edge.source.layout.offset_x -= (delta_x / delta_length) * force;
-        edge.source.layout.offset_y -= (delta_y / delta_length) * force;
-        if(this.layout === "3d") {    
-          edge.source.layout.offset_z -= (delta_z / delta_length_z) * force_z;
-        }
-
-        edge.target.layout.offset_x += (delta_x / delta_length) * force;
-        edge.target.layout.offset_y += (delta_y / delta_length) * force;
-        if(this.layout === "3d") {    
-          edge.target.layout.offset_z += (delta_z / delta_length_z) * force_z;
-        }        
+        
+        var change = mul(this.layout, delta, get(this.layout, force/delta_length));
+        edge.source.layout.offset = sub(this.layout, edge.source.layout.offset, change);
+        edge.target.layout.offset = add(this.layout, edge.target.layout.offset, change);
       }
       
       // calculate positions
       for(var i=0; i < nodes_length; i++) {
         var node = graph.nodes[i];
-        var delta_length = Math.max(EPSILON, Math.sqrt(node.layout.offset_x * node.layout.offset_x + node.layout.offset_y * node.layout.offset_y));
-        if(this.layout === "3d") {
-          var delta_length_z = Math.max(EPSILON, Math.sqrt(node.layout.offset_z * node.layout.offset_z + node.layout.offset_y * node.layout.offset_y));
-        }
+        var delta_length = Math.max(EPSILON, Math.sqrt(sum(mul(this.layout, node.layout.offset, node.layout.offset))));
 
-        node.layout.tmp_pos_x += (node.layout.offset_x / delta_length) * Math.min(delta_length, temperature);
-        node.layout.tmp_pos_y += (node.layout.offset_y / delta_length) * Math.min(delta_length, temperature);
-        if(this.layout === "3d") {    
-          node.layout.tmp_pos_z += (node.layout.offset_z / delta_length_z) * Math.min(delta_length_z, temperature);
-        }
+        node.layout.tmp_pos = add(this.layout, node.layout.tmp_pos, mul(this.layout, node.layout.offset, get(this.layout, Math.min(delta_length, temperature) / delta_length)))
 
         var updated = true;
-        node.position.x -=  (node.position.x-node.layout.tmp_pos_x)/10;
-          node.position.y -=  (node.position.y-node.layout.tmp_pos_y)/10;
-
+        var posChange = div(this.layout, sub(this.layout, node.position, node.layout.tmp_pos), get(this.layout, 10));
+        // error on ovewriting node.position, this is an draw_object position
+//        node.position = sub(this.layout, node.position, posChange);
+        var tmp = sub(this.layout, node.position, posChange);
+//        var val = (node.position.y-node.layout.tmp_pos.y)/10;
+        node.position.x = tmp.x;
+        node.position.y =  tmp.y;
+        
         if(this.layout === "3d") {    
-          node.position.z -=  (node.position.z-node.layout.tmp_pos_z)/10;
+            node.position.z = tmp.z;
         }
         
         // execute callback function if positions has been updated
