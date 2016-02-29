@@ -1,3 +1,11 @@
+Disclaimer
+==========
+
+I'm not an author of Graph-Visualization project. I search a simple engine for rendering graphs in 3D.
+I found this project. It works well for 2D rendering but there were many mistakes in 3D rendering.
+I fixed them. Also I want to try render 2D graphs from vis.js project. I make a simple graph loader of vis.js datasets to render them in 3D.
+I hope it can be useful. 
+
 Graph-Visualization
 ===================
 
